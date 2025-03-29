@@ -47,7 +47,7 @@ class SBEOS_Environment:
                 entropy_v = entropy(pdf,base=2)
         return entropy_v
     def reset(self):
-        self.band = self.band[-2:]
+        self.band = np.array(self.band[-self.window_size:])
         self.current_timestep = 0
         self.current_state = self.generate_state()
         return self.generate_observation_state()
@@ -72,6 +72,8 @@ class SBEOS_Environment:
             "state": self.current_state
         }
         return observation,reward,done,info
+        
+
         
 class SBEDS_Environment:
     def __init__(self,max_timesteps=180,reward=10,penalty=5,window_size=10):
@@ -124,7 +126,7 @@ class SBEDS_Environment:
         return self.observation[-2] - self.observation[-1]
     
     def reset(self):
-        self.band = self.band[-2:]
+        self.band = self.band[-self.window_size:]
         self.current_timestep = 0
         self.current_state = self.generate_state()
         return self.generate_observation_state()
@@ -150,3 +152,4 @@ class SBEDS_Environment:
         }
         return observation,reward,done,info
         
+
