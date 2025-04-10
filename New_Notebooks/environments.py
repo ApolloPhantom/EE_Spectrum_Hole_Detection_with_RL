@@ -7,6 +7,7 @@ class SBEOS_Environment:
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.penalty = penalty
+        self.pressure = pressure
         self.window_size = window_size
         self.band = np.array([])
         self.actual_band = np.array([])
@@ -38,18 +39,44 @@ class SBEOS_Environment:
         self.band = np.append(self.band,noisy_state)
         self.actual_current_state = self.actual_band[-1]
         return noisy_state
+    # def generate_observation_state(self):
+    #     sign_v = np.array(self.band[-self.window_size:])
+    #     if len(sign_v) < self.window_size:
+    #         entropy_v = 0
+    #     else:
+    #         vc = np.bincount(sign_v,minlength=2)
+    #         pdf = vc/len(sign_v)
+    #         if np.all(pdf == 0):
+    #             entropy_v = 0
+    #         else:
+    #             entropy_v = entropy(pdf,base=2)
+    #     return entropy_v
     def generate_observation_state(self):
         sign_v = np.array(self.band[-self.window_size:])
         if len(sign_v) < self.window_size:
-            entropy_v = 0
-        else:
-            vc = np.bincount(sign_v,minlength=2)
-            pdf = vc/len(sign_v)
-            if np.all(pdf == 0):
-                entropy_v = 0
-            else:
-                entropy_v = entropy(pdf,base=2)
-        return entropy_v
+            pad_len = self.window_size - len(sign_v)
+            sign_v = np.concatenate((np.zeros(pad_len), sign_v))
+        vc = np.bincount(sign_v.astype(int), minlength=2)
+        pdf = vc / len(sign_v)
+        entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
+        idle_frac = pdf[0]
+        busy_frac = pdf[1]
+        last_state_duration = self.time_since_last_change(sign_v)
+        transitions = np.sum(np.abs(np.diff(sign_v)))
+        observation = np.concatenate([
+            sign_v,                          # Temporal raw state
+            [entropy_v, idle_frac, busy_frac, last_state_duration, transitions]
+        ])
+        return observation
+
+    def time_since_last_change(self, sign_v):
+        if len(sign_v) < 2:
+            return 0
+        rev = sign_v[::-1]
+        for i in range(1, len(rev)):
+            if rev[i] != rev[0]:
+                return i
+        return len(rev)
     def reset(self):
         # self.band = np.array(self.band[-self.window_size:])
         # self.actual_band = np.array(self.actual_band[-self.window_size:])
@@ -64,9 +91,11 @@ class SBEOS_Environment:
         if actual == prediction:
             return self.reward
         elif actual != prediction and actual == 1:
-            return -self.penalty
+            return -self.penalty - self.pressure*self.current_timestep
         else:
-            return self.penalty
+            return self.penalty - self.pressure*self.current_timestep
+        # else:
+        #     return -self.penalty
     
     def step(self,action):
         self.current_timestep += 1
@@ -88,6 +117,7 @@ class SBEDS_Environment:
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.penalty = penalty
+        self.pressure = pressure
         self.window_size = window_size
         self.band = np.array([])
         self.actual_band = np.array([])
@@ -153,9 +183,9 @@ class SBEDS_Environment:
         if actual == prediction:
             return self.reward
         elif actual != prediction and actual == 1:
-            return -self.penalty
+            return -self.penalty - self.pressure*self.current_timestep
         else:
-            return self.penalty
+            return self.penalty - self.pressure*self.current_timestep
     
     def step(self,action):
         self.current_timestep += 1
@@ -176,6 +206,7 @@ class SBOS_Environment:
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.penalty = penalty
+        self.pressure = pressure
         self.window_size = window_size
         self.band = np.array([])
         self.actual_band = np.array([])
@@ -233,9 +264,9 @@ class SBOS_Environment:
         if actual == prediction:
             return self.reward
         elif actual != prediction and actual == 1:
-            return -self.penalty
+            return -self.penalty - self.pressure*self.current_timestep
         else:
-            return self.penalty
+            return self.penalty - self.pressure*self.current_timestep
     
     def step(self,action):
         self.current_timestep += 1
