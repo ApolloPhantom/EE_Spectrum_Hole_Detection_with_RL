@@ -51,6 +51,23 @@ class SBEOS_Environment:
     #         else:
     #             entropy_v = entropy(pdf,base=2)
     #     return entropy_v
+    # def generate_observation_state(self):
+    #     sign_v = np.array(self.band[-self.window_size:])
+    #     if len(sign_v) < self.window_size:
+    #         pad_len = self.window_size - len(sign_v)
+    #         sign_v = np.concatenate((np.zeros(pad_len), sign_v))
+    #     vc = np.bincount(sign_v.astype(int), minlength=2)
+    #     pdf = vc / len(sign_v)
+    #     entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
+    #     idle_frac = pdf[0]
+    #     busy_frac = pdf[1]
+    #     last_state_duration = self.time_since_last_change(sign_v)
+    #     transitions = np.sum(np.abs(np.diff(sign_v)))
+    #     observation = np.concatenate([
+    #         sign_v,                          # Temporal raw state
+    #         [entropy_v, idle_frac, busy_frac, last_state_duration, transitions]
+    #     ])
+    #     return observation
     def generate_observation_state(self):
         sign_v = np.array(self.band[-self.window_size:])
         if len(sign_v) < self.window_size:
@@ -61,12 +78,18 @@ class SBEOS_Environment:
         entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
         idle_frac = pdf[0]
         busy_frac = pdf[1]
+        smoothed_change = np.mean(np.abs(np.diff(sign_v)))
+        energy = np.sum(sign_v ** 2) / len(sign_v)
         last_state_duration = self.time_since_last_change(sign_v)
-        transitions = np.sum(np.abs(np.diff(sign_v)))
         observation = np.concatenate([
-            sign_v,                          # Temporal raw state
-            [entropy_v, idle_frac, busy_frac, last_state_duration, transitions]
+            sign_v,                        # Raw noisy window
+            [entropy_v,                   # Entropy of the observed window
+            idle_frac, busy_frac,       # Empirical distribution
+            smoothed_change,            # State change magnitude (indirect transition hint)
+            energy,                     # Signal energy
+            last_state_duration]        # Time since last observed switch
         ])
+
         return observation
 
     def time_since_last_change(self, sign_v):
