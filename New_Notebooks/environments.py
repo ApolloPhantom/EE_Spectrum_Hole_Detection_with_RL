@@ -114,11 +114,11 @@ class SBEOS_Environment:
         if actual == prediction:
             return self.reward
         elif actual != prediction and actual == 1:
-            # return -self.penalty - self.pressure*self.current_timestep
-            return -self.penalty
+            return -self.penalty - self.pressure*self.current_timestep
+            # return -self.penalty
         else:
-            # return self.penalty - self.pressure*self.current_timestep
-            return self.penalty
+            return self.penalty - self.pressure*self.current_timestep
+            # return self.penalty
         # else:
         #     return -self.penalty
     
