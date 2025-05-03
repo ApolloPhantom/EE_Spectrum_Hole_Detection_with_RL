@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.stats import entropy
 
 class SBEOS_Environment:
-    def __init__(self,max_timesteps=180,reward=20,penalty=5,pressure=0.1,window_size=10,time_dependence=4,noise_mean_min=-0.5,noise_mean_max=0.5,noise_std_min=0.5,noise_std_max=1.0):
+    def __init__(self,max_timesteps=180,reward=20,penalty=5,pressure=0.2,window_size=10,time_dependence=4,noise_mean_min=-0.5,noise_mean_max=0.5,noise_std_min=0.5,noise_std_max=1.0):
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.penalty = penalty
@@ -111,10 +111,10 @@ class SBEOS_Environment:
         if actual == prediction:
             return self.reward
         elif actual != prediction and actual == 1:
-            return -self.penalty*2 - self.pressure*self.current_timestep
+            return -self.penalty - self.pressure*self.current_timestep
             # return -self.penalty
         else:
-            return -self.penalty - self.pressure*(self.current_timestep//2)
+            return self.penalty - self.pressure*(self.current_timestep//2)
             # return self.penalty
         # else:
         #     return -self.penalty
