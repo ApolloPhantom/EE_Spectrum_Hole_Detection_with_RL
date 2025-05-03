@@ -3,9 +3,11 @@ import pandas as pd
 from scipy.stats import entropy
 
 class SBEOS_Environment:
-    def __init__(self,max_timesteps=180,reward=20,penalty=5,pressure=0.2,window_size=10,time_dependence=4,noise_mean_min=-0.5,noise_mean_max=0.5,noise_std_min=0.5,noise_std_max=1.0):
+    def __init__(self,max_timesteps=180,energy_cost=10,reward=20,penalty=5,pressure=0.5,window_size=10,time_dependence=4,noise_mean_min=-0.5,noise_mean_max=0.5,noise_std_min=0.5,noise_std_max=1.0):
         self.max_timesteps = max_timesteps
         self.reward = reward
+        self.min_energy_cost = energy_cost
+        self.max_energy_cost = energy_cost*pressure
         self.penalty = penalty
         self.pressure = pressure
         self.window_size = window_size
@@ -16,6 +18,9 @@ class SBEOS_Environment:
         self.noise_std_max = noise_std_max
         self.band = np.array([]) #Storage for Noisy States
         self.actual_band = np.array([]) #Storage for Actual States
+        self.energy_spent = np.array([]) #Storage of energy spent
+        self.true_state = []
+        self.predictions = []
         self.init_band()
     def init_band(self):
         t = int(self.time_dependence)
@@ -28,10 +33,8 @@ class SBEOS_Environment:
         for past in product(state_space, repeat=t):
             # Introduce a bias factor
             bias_factor = np.random.uniform(0.1, 0.9)
-
             # Base transition probabilities biased toward 0 or 1
             transition_probs = [bias_factor, 1 - bias_factor]
-
             # Add randomness (noise) to make transitions less deterministic
             transition_probs = np.array(transition_probs) + np.random.normal(0, 0.1, 2)
             transition_probs = np.clip(transition_probs, 0, 1)
@@ -107,20 +110,37 @@ class SBEOS_Environment:
         self.current_state = self.generate_state()
         return self.generate_observation_state()
     
-    def cal_reward(self,actual,prediction):
-        if actual == prediction:
-            return self.reward
-        elif actual != prediction and actual == 1:
-            return -self.penalty - self.pressure*self.current_timestep
-            # return -self.penalty
-        else:
-            return self.penalty - self.pressure*(self.current_timestep//2)
+    def cal_reward(self,actual,action):
+        # if actual == prediction:
+        #     return self.reward
+        # elif actual != prediction and actual == 1:
+        #     return -self.penalty - self.pressure*self.current_timestep
+        #     # return -self.penalty
+        # else:
+        #     return self.penalty - self.pressure*(self.current_timestep//2)
             # return self.penalty
         # else:
         #     return -self.penalty
+        # Notes 0 and 1 for prediction with no sensing and 2 and 3 for prediction with sensing we get predictions using action%2
+        if action == 0 and actual == 0:
+            return self.reward - self.min_energy_cost
+        elif action == 0 and actual == 1:
+            return -self.penalty - self.min_energy_cost 
+        elif action == 1 and actual == 1:
+            return self.reward - self.min_energy_cost
+        elif action == 1 and actual == 0:
+            return -self.penalty*2 - self.min_energy_cost
+        elif action == 2 and actual == 0:
+            return self.reward - self.max_energy_cost
+        elif action == 2 and actual == 1:
+            return -self.penalty*2 - self.max_energy_cost
+        elif action == 3 and actual == 1:
+            return self.reward - self.max_energy_cost
+        elif action == 3 and actual == 0:
+            return -self.penalty - self.max_energy_cost
+
     
     def step(self,action):
-        self.current_timestep += 1
         reward = self.cal_reward(int(self.actual_band[-1]),action)
         #print("actual",int(self.actual_band[-1]),"prediction",action)
         self.current_state = self.generate_state()
@@ -128,9 +148,10 @@ class SBEOS_Environment:
         done = self.current_timestep >= self.max_timesteps
         info = {
             "timestep": self.current_timestep,
-            "correct_prediction": self.actual_current_state == action,
-            "state": int(self.actual_band[-2])
+            "state": int(self.actual_band[-2]),
+            "energy_cost": self.min_energy_cost if action < 2 else self.max_energy_cost
         }
+        self.current_timestep += 1
         return observation,reward,done,info
         
 
