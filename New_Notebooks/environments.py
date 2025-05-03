@@ -13,24 +13,54 @@ class SBEOS_Environment:
         self.actual_band = np.array([])
         self.init_band()
     def init_band(self):
+        # t1 = np.random.choice([0, 1])
+        # t_m1 = np.random.rand(2,2)
+        # t_m1 /= t_m1.sum(axis=1,keepdims=True)
+        # t2 = np.random.choice([0, 1], p=t_m1[t1])
+        # t_m2 = {
+        # (0, 0): np.random.dirichlet([1, 1]),  
+        # (0, 1): np.random.dirichlet([1, 1]),
+        # (1, 0): np.random.dirichlet([1, 1]),
+        # (1, 1): np.random.dirichlet([1, 1])
+        # }
         t1 = np.random.choice([0, 1])
-        t_m1 = np.random.rand(2,2)
-        t_m1 /= t_m1.sum(axis=1,keepdims=True)
-        t2 = np.random.choice([0, 1], p=t_m1[t1])
-        t_m2 = {
-        (0, 0): np.random.dirichlet([1, 1]),  
-        (0, 1): np.random.dirichlet([1, 1]),
-        (1, 0): np.random.dirichlet([1, 1]),
-        (1, 1): np.random.dirichlet([1, 1])
-        }
-        self.transiton_matrix = t_m2
-        self.band = np.array([t1, t2])
-        self.actual_band = np.array([t1, t2])
-        self.noise_mean = np.random.uniform(-0.1, 0.1)
-        self.noise_std = np.random.uniform(0.01, 0.1)
+        t2 = np.random.choice([0, 1])
+        t3 = np.random.choice([0, 1])
+        t4 = np.random.choice([0, 1])
+        # t_m4 = {
+        #     (a, b, c, d): np.random.dirichlet([1, 1])
+        #     for a in [0, 1]
+        #     for b in [0, 1]
+        #     for c in [0, 1]
+        #     for d in [0, 1]
+        # }
+        # self.transiton_matrix = t_m4
+        t_m4 = {}
+
+        for a in [0, 1]:
+            for b in [0, 1]:
+                for c in [0, 1]:
+                    for d in [0, 1]:
+                        # Randomly introduce bias to transition probabilities
+                        # Bias factors can change, for example, making it more likely to stay in the same state
+                        bias_factor = np.random.uniform(0.1, 0.9)
+                        transition_probs = [bias_factor, 1 - bias_factor]  # favor one state over another
+
+                        # Add randomness to make transitions less predictable
+                        transition_probs = np.array(transition_probs) + np.random.normal(0, 0.1, 2)
+                        transition_probs = np.clip(transition_probs, 0, 1)  # ensure probabilities are valid
+                        transition_probs /= transition_probs.sum()  # normalize to sum to 1
+
+                        t_m4[(a, b, c, d)] = transition_probs
+
+        self.transition_matrix = t_m4
+        self.band = np.array([t1, t2, t3, t4])
+        self.actual_band = np.array([t1, t2, t3, t4])
+        self.noise_mean = np.random.uniform(-0.5, 0.5)
+        self.noise_std = np.random.uniform(0.5, 1.0)
     def generate_state(self):
-        p_2 = tuple(self.band[-2:])
-        t_m2 = self.transiton_matrix
+        p_2 = tuple(self.band[-4:])
+        t_m2 = self.transition_matrix
         next_state = np.random.choice([0,1],p=t_m2[p_2])
         self.actual_band = np.append(self.actual_band, next_state)
         noise = np.random.normal(self.noise_mean, self.noise_std)
@@ -124,14 +154,14 @@ class SBEOS_Environment:
     
     def step(self,action):
         self.current_timestep += 1
-        reward = self.cal_reward(self.current_state,action)
+        reward = self.cal_reward(int(self.current_state),action)
         self.current_state = self.generate_state()
         observation = self.generate_observation_state()
         done = self.current_timestep >= self.max_timesteps
         info = {
             "timestep": self.current_timestep,
             "correct_prediction": self.actual_current_state == action,
-            "state": self.actual_current_state
+            "state": int(self.actual_band[-2])
         }
         return observation,reward,done,info
         
