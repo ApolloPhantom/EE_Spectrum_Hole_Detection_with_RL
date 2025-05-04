@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.stats import entropy
 from itertools import product
 class SBEOS_Environment:
-    def __init__(self,max_timesteps=180,energy_cost=10,reward=20,penalty=5,pressure=0.5,window_size=10,time_dependence=4,noise_mean_min=-0.5,noise_mean_max=0.5,noise_std_min=0.5,noise_std_max=1.0):
+    def __init__(self,max_timesteps=180,energy_cost=10,reward=10,penalty=5,pressure=0.1,window_size=10,time_dependence=4,noise_mean_min=-0.1,noise_mean_max=0.1,noise_std_min=0.2,noise_std_max=0.6):
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.min_energy_cost = energy_cost
@@ -105,22 +105,13 @@ class SBEOS_Environment:
     
     def cal_reward(self,actual,action):
         if action == 0 and actual == 0:
-            return self.reward - self.min_energy_cost
+            return self.reward 
         elif action == 0 and actual == 1:
-            return -self.penalty - self.min_energy_cost 
+            return -self.penalty
         elif action == 1 and actual == 1:
-            return self.reward - self.min_energy_cost
+            return self.reward 
         elif action == 1 and actual == 0:
-            return -self.penalty*2 - self.min_energy_cost
-        elif action == 2 and actual == 0:
-            return self.reward - self.max_energy_cost
-        elif action == 2 and actual == 1:
-            return -self.penalty*2 - self.max_energy_cost
-        elif action == 3 and actual == 1:
-            return self.reward - self.max_energy_cost
-        elif action == 3 and actual == 0:
-            return -self.penalty*2 - self.max_energy_cost
-
+            return -self.penalty 
     
     def step(self,action):
         reward = self.cal_reward(int(self.actual_band[-1]),action)
