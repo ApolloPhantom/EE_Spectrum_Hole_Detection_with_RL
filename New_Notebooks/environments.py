@@ -58,6 +58,7 @@ class SBEOS_Environment:
         return noisy_state
     def generate_observation_state(self):
         sign_v = np.array(self.band[-self.window_size:])
+
         if len(sign_v) < self.window_size:
             pad_len = self.window_size - len(sign_v)
             sign_v = np.concatenate((np.zeros(pad_len), sign_v))
@@ -79,6 +80,7 @@ class SBEOS_Environment:
 
         observation = np.concatenate([
             denoised_v,                      # Denoised window
+            # sign_v,
             [entropy_v,                     # Entropy of the cleaned window
             estimated_noise_mean,         # Estimated noise mean
             estimated_noise_std,          # Estimated noise std
