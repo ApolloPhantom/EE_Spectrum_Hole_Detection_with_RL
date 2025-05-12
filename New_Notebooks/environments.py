@@ -118,7 +118,6 @@ class SBEOS_Environment:
     
     def step(self,action):
         reward = self.cal_reward(int(self.actual_band[-1]),action%2)
-        #print("actual",int(self.actual_band[-1]),"prediction",action)
         self.current_state = self.generate_state()
         observation = self.generate_observation_state()
         done = self.current_timestep >= self.max_timesteps
@@ -129,101 +128,3 @@ class SBEOS_Environment:
         }
         self.current_timestep += 1
         return observation,reward,done,info
-        
-
-class MultiBandSBEOS(SBEOS_Environment):
-    def __init__(self, num_bands=3, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.num_bands = num_bands
-        self.bands = []
-        self.actual_bands = []
-        self.transition_matrices = []
-        self.current_band_index = 0
-        self.init_multiband()
-
-    def init_multiband(self):
-        self.bands = []
-        self.actual_bands = []
-        self.transition_matrices = []
-        for _ in range(self.num_bands):
-            super().init_band()
-            self.bands.append(self.band.copy())
-            self.actual_bands.append(self.actual_band.copy())
-            self.transition_matrices.append(self.transition_matrix.copy())
-        self.band = self.bands[0]
-        self.actual_band = self.actual_bands[0]
-        self.transition_matrix = self.transition_matrices[0]
-
-    def reset(self):
-        self.current_timestep = 0
-        self.current_band_index = 0
-        self.init_multiband()
-        self.current_state = self.generate_state()
-        return self.generate_observation_state()
-
-    def generate_state(self):
-        for i in range(self.num_bands):
-            p = tuple(self.bands[i][-self.time_dependence:])
-            next_state = np.random.choice([0,1], p=self.transition_matrices[i][p])
-            self.actual_bands[i] = np.append(self.actual_bands[i], next_state)
-            noise = np.random.normal(self.noise_mean, self.noise_std)
-            noisy_state = int(np.round(np.clip(next_state + noise, 0, 1)))
-            self.bands[i] = np.append(self.bands[i], noisy_state)
-        return self.bands[self.current_band_index][-1]
-
-    def generate_observation_state(self):
-        obs = []
-        for b in self.bands:
-            sign_v = np.array(b[-self.window_size:])
-            if len(sign_v) < self.window_size:
-                sign_v = np.concatenate((np.zeros(self.window_size - len(sign_v)), sign_v))
-            binary_estimate = np.round(sign_v)  
-            noise = sign_v - binary_estimate
-            estimated_noise_mean = np.mean(noise)
-            estimated_noise_std = np.std(noise)
-            denoised_v = np.round(np.clip(sign_v - estimated_noise_mean, 0, 1))
-            vc = np.bincount(denoised_v.astype(int), minlength=2)
-            pdf = vc / len(denoised_v)
-            entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
-            smoothed_change = np.mean(np.abs(np.diff(denoised_v)))
-            energy = np.sum(denoised_v ** 2) / len(denoised_v)
-            last_state_duration = self.time_since_last_change(denoised_v)
-
-            obs.extend(denoised_v)
-            obs.extend([
-                entropy_v,
-                estimated_noise_mean,
-                estimated_noise_std,
-                smoothed_change,
-                energy,
-                last_state_duration
-            ])
-        return np.array(obs)
-
-    def step(self, action):
-        assert 0 <= action < self.num_bands * 4, f"Action {action} out of range"
-        band_index = action // 4
-        base_action = action % 4
-
-        transition_cost = abs(band_index - self.current_band_index)
-        self.current_band_index = band_index
-
-        actual_state = int(self.actual_bands[band_index][-1])
-        reward = self.cal_reward(actual_state, base_action)
-        reward -= transition_cost  # Transition energy cost
-
-        self.current_state = self.generate_state()
-        observation = self.generate_observation_state()
-        done = self.current_timestep >= self.max_timesteps
-
-        info = {
-            "timestep": self.current_timestep,
-            "selected_band": band_index,
-            "predicted_action": base_action,
-            "actual_state": actual_state,
-            "energy_cost": self.min_energy_cost if base_action < 2 else self.max_energy_cost,
-            "transition_cost": transition_cost
-        }
-
-        self.current_timestep += 1
-        return observation, reward, done, info
