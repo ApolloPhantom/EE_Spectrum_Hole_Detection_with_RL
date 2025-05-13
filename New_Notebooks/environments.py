@@ -56,6 +56,49 @@ class SBEOS_Environment:
         self.band = np.append(self.band,noisy_state)
         self.actual_current_state = self.actual_band[-1]
         return noisy_state
+    # def generate_observation_state(self):
+    #     sign_v = np.array(self.band[-self.window_size:])
+
+    #     if len(sign_v) < self.window_size:
+    #         pad_len = self.window_size - len(sign_v)
+    #         sign_v = np.concatenate((np.zeros(pad_len), sign_v))
+
+    #     binary_estimate = np.round(sign_v)  
+    #     noise = sign_v - binary_estimate
+
+    #     estimated_noise_mean = np.mean(noise)
+    #     estimated_noise_std = np.std(noise)
+    #     denoised_v = np.clip(sign_v - estimated_noise_mean, 0, 1)
+    #     denoised_v = np.round(denoised_v)  
+
+    #     vc = np.bincount(denoised_v.astype(int), minlength=2)
+    #     pdf = vc / len(denoised_v)
+    #     entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
+    #     smoothed_change = np.mean(np.abs(np.diff(denoised_v)))
+    #     energy = np.sum(denoised_v ** 2) / len(denoised_v)
+    #     last_state_duration = self.time_since_last_change(denoised_v)
+
+    #     observation = np.concatenate([
+    #         denoised_v,                      # Denoised window
+    #         # sign_v,
+    #         [entropy_v,                     # Entropy of the cleaned window
+    #         estimated_noise_mean,         # Estimated noise mean
+    #         estimated_noise_std,          # Estimated noise std
+    #         smoothed_change,              # Average change magnitude
+    #         energy,                        # Signal energy
+    #         last_state_duration]          # Time since last state switch
+    #     ])
+
+    #     return observation
+    # def time_since_last_change(self, sign_v):
+    #     if len(sign_v) < 2:
+    #         return 0
+    #     rev = sign_v[::-1]
+    #     for i in range(1, len(rev)):
+    #         if rev[i] != rev[0]:
+    #             return i
+    #     return len(rev)
+    
     def generate_observation_state(self):
         sign_v = np.array(self.band[-self.window_size:])
 
@@ -63,33 +106,37 @@ class SBEOS_Environment:
             pad_len = self.window_size - len(sign_v)
             sign_v = np.concatenate((np.zeros(pad_len), sign_v))
 
-        binary_estimate = np.round(sign_v)  
-        noise = sign_v - binary_estimate
+        # Use sign_v directly (no denoising)
+        binary_v = np.round(sign_v).astype(int)  # used for idle/busy estimation and other binary metrics
 
-        estimated_noise_mean = np.mean(noise)
-        estimated_noise_std = np.std(noise)
-        denoised_v = np.clip(sign_v - estimated_noise_mean, 0, 1)
-        denoised_v = np.round(denoised_v)  
+        # Calculate idle and busy fractions
+        vc = np.bincount(binary_v, minlength=2)
+        total = len(binary_v)
+        idle_fraction = vc[0] / total if total > 0 else 0
+        busy_fraction = vc[1] / total if total > 0 else 0
 
-        vc = np.bincount(denoised_v.astype(int), minlength=2)
-        pdf = vc / len(denoised_v)
+        # Probability distribution for entropy
+        pdf = vc / total if total > 0 else np.zeros(2)
         entropy_v = entropy(pdf, base=2) if not np.all(pdf == 0) else 0
-        smoothed_change = np.mean(np.abs(np.diff(denoised_v)))
-        energy = np.sum(denoised_v ** 2) / len(denoised_v)
-        last_state_duration = self.time_since_last_change(denoised_v)
 
+        # Temporal features from binary_v
+        smoothed_change = np.mean(np.abs(np.diff(binary_v)))
+        energy = np.sum(binary_v ** 2) / total  # effectively same as busy_fraction
+        last_state_duration = self.time_since_last_change(binary_v)
+
+        # Compose final observation
         observation = np.concatenate([
-            denoised_v,                      # Denoised window
-            # sign_v,
-            [entropy_v,                     # Entropy of the cleaned window
-            estimated_noise_mean,         # Estimated noise mean
-            estimated_noise_std,          # Estimated noise std
-            smoothed_change,              # Average change magnitude
-            energy,                        # Signal energy
-            last_state_duration]          # Time since last state switch
+            sign_v,                      # Raw signal window (unchanged)
+            [entropy_v,                  # Entropy
+            idle_fraction,             # Idle fraction
+            busy_fraction,             # Busy fraction
+            smoothed_change,           # Mean abs diff
+            energy,                    # Energy of binary signal
+            last_state_duration]       # Time since last state switch
         ])
 
         return observation
+    
     def time_since_last_change(self, sign_v):
         if len(sign_v) < 2:
             return 0
