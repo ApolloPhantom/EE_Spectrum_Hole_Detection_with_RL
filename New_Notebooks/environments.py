@@ -4,7 +4,7 @@ from scipy.stats import entropy
 from itertools import product
 class SBEOS_Environment:
     def __init__(self,max_timesteps=180,energy_cost=10,reward=10,penalty=5,pressure=0.1,window_size=10,time_dependence=4,
-                 noise_mean_min=-0.1,noise_mean_max=0.1,noise_std_min=0.2,noise_std_max=0.6):
+                 noise_mean_min=-0.9,noise_mean_max=0.9,noise_std_min=0.2,noise_std_max=0.6):
         self.max_timesteps = max_timesteps
         self.reward = reward
         self.min_energy_cost = energy_cost
